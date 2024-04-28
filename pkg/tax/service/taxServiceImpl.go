@@ -1,7 +1,6 @@
 package service
 
 import (
-	"fmt"
 	"math"
 
 	_taxModel "github.com/Krittin-Khanueng/assessment-tax/pkg/tax/model"
@@ -23,59 +22,81 @@ func NewTaxServiceImpl() TaxService {
 	return &TaxServiceImpl{}
 }
 
+// การคำนวนภาษีตามขั้นบันใด
+// รายได้ 0 - 150,000 ได้รับการยกเว้น
+// 150,001 - 500,000 อัตราภาษี 10%
+// 500,001 - 1,000,000 อัตราภาษี 15%
+// 1,000,001 - 2,000,000 อัตราภาษี 20%
+// มากกว่า 2,000,000 อัตราภาษี 35%
+
 func (s *TaxServiceImpl) CalculateTaxRefund(userInfo *_taxModel.UserInfo) (*_taxModel.Tax, error) {
+
 	personalDeduction := s.convertBahtToSatang(deductionPersonal)
-
-	var taxRefund float64
+	txtLevel := make([]_taxModel.TaxLevel, 5)
 	netAmount := s.convertBahtToSatang(userInfo.TotalIncome) - personalDeduction
-	netAmount = netAmount - s.convertBahtToSatang(s.calculateAllowanceTypeIsDonation(userInfo))
-	fmt.Printf("netAmount: %f\n", netAmount)
+	netAmount -= s.convertBahtToSatang(s.calculateAllowanceTypeIsDonation(userInfo))
 	wat := s.convertBahtToSatang(userInfo.WHT)
-	if netAmount <= s.convertBahtToSatang(150000.0) {
-		taxRefund = s.calculateWht(netAmount, wat)
-		taxRefund = s.convertSatangToBaht(taxRefund)
-		return &_taxModel.Tax{Tax: taxRefund}, nil
+
+	var textResult float64
+
+	// Calculate tax refund for each tax level
+	if netAmount > s.convertBahtToSatang(150000.0) {
+		textResult += 0.0
+		txtLevel[0].Tax = 0.0
+		netAmount -= s.convertBahtToSatang(150000.0)
+	} else {
+		textResult += 0.0
+		txtLevel[0].Tax = 0.0
+		netAmount = 0.0
 	}
 
-	if netAmount <= s.convertBahtToSatang(500000.0) {
-		taxRefund = s.calculateWht(netAmount, wat)
-		taxRefund = s.convertSatangToBaht(taxRefund)
-		return &_taxModel.Tax{Tax: taxRefund}, nil
+	if netAmount > s.convertBahtToSatang(350000.0) {
+		textResult += taxRate1 * s.convertBahtToSatang(350000.0)
+		txtLevel[1].Tax = taxRate1 * s.convertBahtToSatang(350000.0)
+		netAmount -= s.convertBahtToSatang(350000.0)
+	} else {
+		textResult += taxRate1 * netAmount
+		txtLevel[1].Tax = taxRate1 * netAmount
+		netAmount = 0.0
 	}
 
-	if netAmount <= s.convertBahtToSatang(1000000.0) {
-		taxRefund = s.calculateWht(netAmount, wat)
-		taxRefund = s.convertSatangToBaht(taxRefund)
-		return &_taxModel.Tax{Tax: taxRefund}, nil
+	if netAmount > s.convertBahtToSatang(500000.0) {
+		textResult += taxRate2 * s.convertBahtToSatang(500000.0)
+		txtLevel[2].Tax = taxRate2 * s.convertBahtToSatang(500000.0)
+		netAmount -= s.convertBahtToSatang(500000.0)
+	} else {
+		textResult += taxRate2 * netAmount
+		txtLevel[2].Tax = taxRate2 * netAmount
+		netAmount = 0.0
 	}
 
-	if netAmount <= s.convertBahtToSatang(2000000.0) {
-		taxRefund = s.calculateWht(netAmount, wat)
-		taxRefund = s.convertSatangToBaht(taxRefund)
-		return &_taxModel.Tax{Tax: taxRefund}, nil
-	}
-	taxRefund = 35000.0 + 75000.0 + 200000.0 + (0.35 * (netAmount - 2000000.0))
-	taxRefund = s.convertSatangToBaht(taxRefund)
-	return &_taxModel.Tax{Tax: taxRefund}, nil
-}
-
-func (s *TaxServiceImpl) calculateWht(netAmount, WHT float64) float64 {
-	fmt.Printf("netAmount: %f, WHT: %f\n", netAmount, WHT)
-	if netAmount <= s.convertBahtToSatang(150000.0) {
-		return WHT
-	}
-	if netAmount <= s.convertBahtToSatang(500000.0) {
-		return 0.10*(netAmount-s.convertBahtToSatang(150000.0)) - WHT
-	}
-	if netAmount <= 10000000.0 {
-		return 0.10*(5000000.0-1500000.0) + 0.15*(netAmount-5000000.0) - WHT
+	if netAmount > s.convertBahtToSatang(1000000.0) {
+		textResult += taxRate2 * s.convertBahtToSatang(1000000.0)
+		txtLevel[3].Tax = taxRate2 * s.convertBahtToSatang(1000000.0)
+		netAmount -= s.convertBahtToSatang(1000000.0)
+	} else {
+		textResult += taxRate2 * netAmount
+		txtLevel[3].Tax = taxRate2 * netAmount
+		netAmount = 0.0
 	}
 
-	if netAmount <= 20000000.0 {
-		return 0.10*(5000000.0-1500000.0) + 0.15*(10000000.0-5000000.0) + 0.20*(netAmount-10000000.0) - WHT
+	if netAmount > 0.0 {
+		textResult += taxRate3 * netAmount
+		txtLevel[4].Tax = taxRate3 * netAmount
+		netAmount -= 0.0
 	}
 
-	return 350000.0 + 750000.0 + 2000000.0 + (0.35 * (netAmount - 20000000.0)) - WHT
+	for t, v := range txtLevel {
+		txtLevel[t].Level = s.getTaxLevelRange(t)
+		txtLevel[t].Tax = s.convertSatangToBaht(v.Tax)
+	}
+	textResult -= wat
+	tax := &_taxModel.Tax{
+		Tax:      s.convertSatangToBaht(textResult),
+		TaxLevel: txtLevel,
+	}
+
+	return tax, nil
 }
 
 func (s *TaxServiceImpl) convertSatangToBaht(satang float64) float64 {
@@ -96,4 +117,21 @@ func (s *TaxServiceImpl) calculateAllowanceTypeIsDonation(userInfo *_taxModel.Us
 		}
 	}
 	return allowanceTotal
+}
+
+func (s *TaxServiceImpl) getTaxLevelRange(level int) string {
+	switch level {
+	case 0:
+		return "0-150,000"
+	case 1:
+		return "150,001-500,000"
+	case 2:
+		return "500,001-1,000,000"
+	case 3:
+		return "1,000,001-2,000,000"
+	case 4:
+		return "2,000,001 ขึ้นไป"
+	default:
+		return ""
+	}
 }
