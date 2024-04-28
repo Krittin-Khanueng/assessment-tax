@@ -2,8 +2,19 @@ package service
 
 import (
 	"fmt"
+	"math"
 
 	_taxModel "github.com/Krittin-Khanueng/assessment-tax/pkg/tax/model"
+)
+
+const (
+	taxRate1             = 0.10
+	taxRate2             = 0.15
+	taxRate3             = 0.20
+	taxRate4             = 0.35
+	deductionDonationMax = 100000.0
+	deductionPersonal    = 60000.0
+	deductionKReceiptMax = 50000.0
 )
 
 type TaxServiceImpl struct{}
@@ -13,11 +24,11 @@ func NewTaxServiceImpl() TaxService {
 }
 
 func (s *TaxServiceImpl) CalculateTaxRefund(userInfo *_taxModel.UserInfo) (*_taxModel.Tax, error) {
-	personalDeduction := s.convertBahtToSatang(60000.0)
+	personalDeduction := s.convertBahtToSatang(deductionPersonal)
 
 	var taxRefund float64
 	netAmount := s.convertBahtToSatang(userInfo.TotalIncome) - personalDeduction
-
+	netAmount = netAmount - s.convertBahtToSatang(s.checkAllowanceTypeIsDonation(userInfo))
 	fmt.Printf("netAmount: %f\n", netAmount)
 	wat := s.convertBahtToSatang(userInfo.WHT)
 	if netAmount <= s.convertBahtToSatang(150000.0) {
@@ -74,4 +85,15 @@ func (s *TaxServiceImpl) convertSatangToBaht(satang float64) float64 {
 
 func (s *TaxServiceImpl) convertBahtToSatang(baht float64) float64 {
 	return baht * 100
+}
+
+func (s *TaxServiceImpl) checkAllowanceTypeIsDonation(userInfo *_taxModel.UserInfo) float64 {
+	// check allownactType is donation
+	allowanceTotal := 0.0
+	for _, allowance := range userInfo.Allowances {
+		if allowance.AllowanceType == "donation" && allowance.Amount > deductionDonationMax {
+			allowanceTotal += math.Min(allowance.Amount, deductionDonationMax)
+		}
+	}
+	return allowanceTotal
 }
