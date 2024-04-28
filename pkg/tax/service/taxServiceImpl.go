@@ -28,7 +28,7 @@ func (s *TaxServiceImpl) CalculateTaxRefund(userInfo *_taxModel.UserInfo) (*_tax
 
 	var taxRefund float64
 	netAmount := s.convertBahtToSatang(userInfo.TotalIncome) - personalDeduction
-	netAmount = netAmount - s.convertBahtToSatang(s.checkAllowanceTypeIsDonation(userInfo))
+	netAmount = netAmount - s.convertBahtToSatang(s.calculateAllowanceTypeIsDonation(userInfo))
 	fmt.Printf("netAmount: %f\n", netAmount)
 	wat := s.convertBahtToSatang(userInfo.WHT)
 	if netAmount <= s.convertBahtToSatang(150000.0) {
@@ -87,7 +87,7 @@ func (s *TaxServiceImpl) convertBahtToSatang(baht float64) float64 {
 	return baht * 100
 }
 
-func (s *TaxServiceImpl) checkAllowanceTypeIsDonation(userInfo *_taxModel.UserInfo) float64 {
+func (s *TaxServiceImpl) calculateAllowanceTypeIsDonation(userInfo *_taxModel.UserInfo) float64 {
 	// check allownactType is donation
 	allowanceTotal := 0.0
 	for _, allowance := range userInfo.Allowances {
